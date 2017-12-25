@@ -9,3 +9,14 @@ updating the primal variable only on the active set and then updating the dual v
 explicitly. When combined with a continuation strategy on the regularization parameter,
 the primal dual active set method has a global convergence property under the restricted
 isometry property. Extensive numerical experiments demonstrate its superior performance in efficiency and accuracy compared with the existing methods.
+
+Installation
+===========
+
+To install the development version of PDAS, it's easiest to use the 'devtools' package. Note that PDAS depends on the 'Rcpp' package, which also requires appropriate setting of Rtools and Xcode for Windows and Mac OS/X, respectively.
+
+```
+#install.packages("devtools")
+library(devtools)
+install_github("gordonliu810822/PDAS")
+```
