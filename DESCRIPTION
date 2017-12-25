@@ -4,13 +4,13 @@ Title: What the Package Does (Title Case)
 Version: 0.1.0
 Author: Jin Liu
 Maintainer: Jin Liu <jin.liu@duke-nus.edu.sg>
-Depends: Matrix (>= 1.0-6), utils, foreach, caret
+Depends: 
 Description: More about what it does (maybe more than one line)
     Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: true
-Imports: Rcpp (>= 0.12.7)
-LinkingTo: Rcpp,RcppArmadillo
-NeedsCompilation: yes
-Packaged: 2017-04-17 03:20:30 UTC; gmsjl
+Imports: Rcpp (>= 0.12.8), RcppArmadillo
+Depends: R (>= 3.0.0), Rcpp
+LinkingTo: Rcpp, RcppArmadillo
+URL:https://github.com/gordonliu810822/PDAS
