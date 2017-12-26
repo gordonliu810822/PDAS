@@ -3,6 +3,17 @@ rm(list=ls())
 library(PDAS)
 ls("package:PDAS")
 
+##---- small scale Regression problem ----- #
+#p: length of signal x
+#n: number of samples
+#K: number of nonzero elements in x
+#ratio: range of value in x (10^ratio)
+#sigma: noise standard deviation
+#kind: standard Regression setting
+#seednum: the seed number
+#rho: correlation
+#snr: signal-noise-ratio
+
 n = 200; p = 1000; K = 10; ratio = 1; sigma=0.5; kind = 1; seednum = NULL; rho = 0.5;
 corr = NULL; snr = 2;
 dat = gendata(n,p,K,sigma,ratio,seednum,kind,rho,corr,snr)
