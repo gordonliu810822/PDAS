@@ -1,9 +1,9 @@
 BIC.PDAS <- function(X, y, method, sel="vote", al=0, tau, mu=dim(X)[1]/log(dim(X)[1]),
-del=0, MaxIt=10, Lmax=1, Lmin=1e-8, N=100) {
+del=0, weight = 0.5, MaxIt=1, Lmax=1, Lmin=1e-3, N=100) {
 
 
 
-    out = pdas_path(X, y, method, sel, al, tau, mu, del, MaxIt, Lmax, Lmin, N);
+    out = pdas_path(X, y, method, sel, al, tau, mu, del, weight, MaxIt, Lmax, Lmin, N);
     ithist_as = out$ithist_as;
     ithist_it = out$ithist_it;
     ithist_x = out$ithist_x;
