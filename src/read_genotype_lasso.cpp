@@ -90,7 +90,7 @@ List ReadGenotype(std::string stringname, arma::mat* X_std, int N, int P) {
 		meanX[i] = sum(Xdata->col(i))*1.0 / size1;
 		vec v_i = conv_to<vec>::from(Xdata->col(i));
 		v_i = v_i - meanX[i];
-		(X_std->col(i)) = v_i;
+		//(X_std->col(i)) = v_i;
 		mat pd = v_i.t() * v_i;
 		sqrtsum[i] = sqrt(pd.at(0));
 		//X_std.col(i) = conv_to<fvec>::from(v_i) / sqrtsum[i];
@@ -100,6 +100,7 @@ List ReadGenotype(std::string stringname, arma::mat* X_std, int N, int P) {
 	//arma::Mat<unsigned> XX = *Xdata;
 	List output = List::create(//Rcpp::Named("X_std") = X_std,
 		Rcpp::Named("sqrtsum") = sqrtsum,
+		Rcpp::Named("meanX") = meanX,
 		Rcpp::Named("Phenotype") = Phenotype);
 	return output;
 }

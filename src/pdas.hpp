@@ -18,7 +18,10 @@ using namespace arma;
 
 
 vec getdualA(vec x, vec d, vec pd, uvec A, double lam, double tau, std::string method);
-Rcpp::List pdas(arma::mat X, arma::vec y, double al, double lam, std::string method, double tau, double mu, int MaxIt, arma::vec Xty, arma::vec x0, arma::vec d0, arma::uvec Aoo, arma::mat Goo);
-Rcpp::List pdas_path(arma::mat X, arma::vec y, std::string method, std::string sel, double al, double tau, double mu, double del, int MaxIt, double Lmax, double Lmin, int N);
+Rcpp::List pdas(arma::mat X, arma::vec y, double al, double lam, std::string method, double tau, double mu, double weight, int MaxIt, arma::vec Xty, arma::vec x0, arma::vec d0, arma::uvec Aoo, arma::mat Goo);
+//pdas(arma::mat X, arma::vec y, double al, double lam, char methodn, double tau, double mu, double weight, int MaxIt, arma::vec Xty, arma::vec x0, arma::vec d0, arma::uvec Aoo, arma::mat Goo);
+
+Rcpp::List pdas_path(arma::mat X, arma::vec y, std::string method, std::string sel, double al, double tau, double mu, double del, double weight, int MaxIt, double Lmax, double Lmin, int N);
+//pdas_path(arma::mat X, arma::vec y, std::string method, std::string sel, double al, double tau, double mu, double del, double weight, int MaxIt, double Lmax, double Lmin, int N)
 
 #endif /* plinkfun_hpp */

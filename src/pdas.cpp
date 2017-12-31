@@ -4,14 +4,14 @@
 //#include "rcpp_hello.hpp"
 using namespace Rcpp;
 using namespace arma;
-
+using namespace std;
 // [[Rcpp::depends(RcppArmadillo, RcppEigen)]]
 
 // Jin Liu, Duke-NUS Medical School
 // email: jin.liu@duke-nus.edu.sg
 
 
-vec getdualA(vec x, vec d, vec pd, uvec A, double lam, double tau, std::string method){
+vec getdualA(vec x, vec d, vec pd, uvec A, double lam, double tau, char methodn){
     //-----------------------------------------------------------------------//
     // compute the dual variable for nonconvex penalties on the active set   //
     // INPUTS:                                                               //
@@ -28,52 +28,57 @@ vec getdualA(vec x, vec d, vec pd, uvec A, double lam, double tau, std::string m
     // Created on Dec, 17, 2017                                              //
     //-----------------------------------------------------------------------//
     int s = A.n_elem;
-    vec dualA;
-    dualA.zeros(s);  //'l0'
+    vec dualA;   
+	dualA.zeros(s);
     
     vec dA = d(A), pdA = pd(A), xA = x(A);
     double Tstar;
     IntegerVector ii, i0, i1;
     
-    if (method.compare("bridge") == 0){
-        Tstar = pow(2*lam*(1-tau),1/(2-tau));
-        ii = find(abs(xA)>=Tstar);
-        dualA(as<uvec>(ii)) = lam*tau*pow((abs(xA(as<uvec>(ii)))),tau)/(xA(as<uvec>(ii)));
-    }
-    else if (method.compare("scad") == 0){
-        ii = intersect(as<IntegerVector>(wrap(find(abs(pdA)<=2*lam))),
-                       as<IntegerVector>(wrap(find(abs(pdA)>lam))));
-        dualA(as<uvec>(ii)) = lam*sign(pdA(as<uvec>(ii)));
-        i0 = find((xA % dA)>=0);
-        i1 = intersect(as<IntegerVector>(wrap(find(abs(pdA)>2*lam))),
-                       as<IntegerVector>(wrap(find(abs(pdA)< tau*lam))));
-        ii=intersect(i1,i0);
-        dualA(as<uvec>(ii)) = (tau*lam*sign(pdA(as<uvec>(ii)))-xA(as<uvec>(ii)))/(tau-1);
-    }
-    else if (method.compare("mcp") == 0){
-        i0 = as<IntegerVector>(wrap(find((xA % dA)>=0)));
-        i1 = intersect(as<IntegerVector>(wrap(find(abs(pdA)>lam))),
-                       as<IntegerVector>(wrap(find(abs(pdA)< tau*lam))));
-        ii=intersect(i1,i0);
-        dualA(as<uvec>(ii)) = (lam*tau*sign(pdA(as<uvec>(ii)))-xA(as<uvec>(ii)))/tau;
+	switch (methodn){
+	case 'A':
+		pdA = pd(A);
+		dualA = lam*sign(pdA);
+		//ii = find(abs(xA) >= lam);
+		//dualA(as<uvec>(ii)) == lam*sign(pdA(as<uvec>(ii)));
+		break;
+	case 'C':
+		Tstar = pow(2 * lam*(1 - tau), 1 / (2 - tau));
+		ii = find(abs(xA) >= Tstar);
+		dualA(as<uvec>(ii)) = lam*tau*pow((abs(xA(as<uvec>(ii)))), tau) / (xA(as<uvec>(ii)));
+		break;
+	case 'D':
+		pdA = pd(A);
+		ii = intersect(as<IntegerVector>(wrap(find(abs(pdA)>lam))),
+			as<IntegerVector>(wrap(find(abs(pdA)<(tau + 0.5)*lam))));
+		dualA(as<uvec>(ii)) = lam*sign(pdA(as<uvec>(ii)));
+		break;
+	case 'E':
+		ii = intersect(as<IntegerVector>(wrap(find(abs(pdA) <= 2 * lam))),
+			as<IntegerVector>(wrap(find(abs(pdA)>lam))));
+		dualA(as<uvec>(ii)) = lam*sign(pdA(as<uvec>(ii)));
+		i0 = find((xA % dA) >= 0);
+		i1 = intersect(as<IntegerVector>(wrap(find(abs(pdA)>2 * lam))),
+			as<IntegerVector>(wrap(find(abs(pdA)< tau*lam))));
+		ii = intersect(i1, i0);
+		dualA(as<uvec>(ii)) = (tau*lam*sign(pdA(as<uvec>(ii))) - xA(as<uvec>(ii))) / (tau - 1);
+		break;
+	case 'F':
+		i0 = as<IntegerVector>(wrap(find((xA % dA) >= 0)));
+		i1 = intersect(as<IntegerVector>(wrap(find(abs(pdA)>lam))),
+			as<IntegerVector>(wrap(find(abs(pdA)< tau*lam))));
+		ii = intersect(i1, i0);
+		dualA(as<uvec>(ii)) = (lam*tau*sign(pdA(as<uvec>(ii))) - xA(as<uvec>(ii))) / tau;
+		break;
+	default:
+		dualA.zeros(s); //'l0'
+	}
 
-    }
-    else if (method.compare("cl1") == 0){
-        pdA = pd(A);
-        ii = intersect(as<IntegerVector>(wrap(find(abs(pdA)>lam))),
-                       as<IntegerVector>(wrap(find(abs(pdA)<(tau+0.5)*lam))));
-        dualA(as<uvec>(ii)) = lam*sign(pdA(as<uvec>(ii)));
-    }
-    else if (method.compare("lasso") == 0 ){
-        pdA = pd(A);
-        dualA = lam*sign(pdA);
-    }
-    
     return dualA;
 }
 
 // [[Rcpp::export]]
-Rcpp::List pdas(arma::mat X, arma::vec y, double al, double lam, std::string method, double tau, double mu, int MaxIt, arma::vec Xty, arma::vec x0, arma::vec d0, arma::uvec Aoo, arma::mat Goo) {
+Rcpp::List pdas(arma::mat X, arma::vec y, double al, double lam, char methodn, double tau, double mu, double weight, int MaxIt, arma::vec Xty, arma::vec x0, arma::vec d0, arma::uvec Aoo, arma::mat Goo) {
     //-------------------------------------------------------------------------//
     // Solving nonconvex problem                                               //
     //      1/2||X*x-y||^2 + alpha/2||x||^2 + rho_{lam,tau}(x)                 //
@@ -108,27 +113,27 @@ Rcpp::List pdas(arma::mat X, arma::vec y, double al, double lam, std::string met
     
     vec x = x0, d = d0;
     mat Go = Goo, G;
-    int os = Ao.n_elem;
-    
-	/*cout << "Aclen: " << Aclen << endl;
-	cout << "Ac 0: " << Ac[0] << endl;
-	cout << "Ac 1: " << Ac[1] << endl;*/
-    
+    int so = Ao.n_elem;
+     
     double T;
-    if (method.compare("l0") == 0){
-        T = sqrt(2*lam);
-    }
-    else if (method.compare("bridge") == 0){
-        T = (2-tau)*pow((2*(1-tau)),((tau-1)/(2-tau)))*pow(lam,(1/(2-tau)));
-    }
-    else {
-        T = lam;
-    }
-    
+	switch (methodn){
+	case 'B':
+		T = sqrt(2 * lam);
+		break;
+	case 'C':
+		T = (2 - tau)*pow((2 * (1 - tau)), ((tau - 1) / (2 - tau)))*pow(lam, (1 / (2 - tau)));
+		break;
+	default:
+		T = lam;
+	}
+  
     // initializing
-    vec pd = x + d;
+	//cout << "break1 ..." << weight << endl;
+	vec pd = weight*x + (1-weight)*d;
+	//cout << "break2 ..." << pd(0) << ";" << pd(1) << endl;
+	//cout << "break1 ... " << pd.n_elem << endl;
     uvec A = find(abs(pd) > T);
-    int s = A.size(), so;
+    int s = A.size();
     uvec pdt = A;//abs(pd) > T;
     uvec tpd;
     double L = 0;
@@ -140,69 +145,55 @@ Rcpp::List pdas(arma::mat X, arma::vec y, double al, double lam, std::string met
 	while (It  < MaxIt && s < mu){
         It = It + 1;
         //getdualA(vec x, vec d, vec pd, IntegerVector A, double lam, double tau, std::string method)
-        dA = getdualA(x,d,pd,A,lam, tau, method);
-        //cout << "break 1 : dA, " << sum(dA) << "," << dA.n_elem << endl;
-		vec XtyA = Xty(A);
+		dA = getdualA(x, d, pd/weight, A, lam, tau, methodn);
+ 		vec XtyA = Xty(A);
         rhs = XtyA - dA;
         
-        //cout << "break 2 : XtyA, " << sum(XtyA) << "," << XtyA.n_elem << endl;
-        //cout << "break 3 : rhs, " << sum(rhs) << "," << rhs.n_elem << endl;
-        
-		if (s == os && s == Go.n_rows){
-            IntegerVector Atmp = intersect(as<IntegerVector>(wrap(Ao)),
-                                           as<IntegerVector>(wrap(A)));
-            if ( Atmp.size() == A.n_elem){
-                G = Go;
-            }
-            else {
-                Xa = X.cols(A);
-                mat tmp; tmp.eye(s,s);
-                G = Xa.t() * Xa + al * tmp;
-            }
+		if (s == so && s == Go.n_rows){
+			if (s == 0){
+				G = Go;
+			}
+			else {
+				IntegerVector Atmp = intersect(as<IntegerVector>(wrap(Ao)),as<IntegerVector>(wrap(A)));
+				if (Atmp.size() == A.n_elem){
+				//if (Ao.n_elem == A.n_elem && sum(Ao) == sum(A)){
+					G = Go;
+				}
+				else {
+					Xa = X.cols(A);
+					mat tmp; tmp.eye(s, s);
+					G = Xa.t() * Xa + al * tmp;
+				}
+			}      
         }
         else {
             Xa = X.cols(A);
             mat tmp; tmp.eye(s,s);
             G = Xa.t() * Xa + al * tmp;
         }
-		
-        //cout << "break 4 : G, " << sum(sum(G)) << "," << G.n_rows << "x" << G.n_cols << endl;
         
         x.zeros(p);
         xA = solve(G,rhs);
         x(A) = xA;
-        //cout << "break 5 : xA, " << sum(xA) << "," << xA.n_elem << endl;
         
         L = dot(xA, XtyA+dA);
-        //cout << "break 6 : L, " << L << endl;
-        
-        //sx =
         d = X.t()*(y-X*x);
-        //cout << "break 7 : d, " << sum(d) << "," << d.n_elem << endl;
-        pd = x + d;
-        //cout << "break 8 : pd, " << sum(pd) << "," << pd.n_elem << endl;
+		pd = weight*x + (1 - weight)*d;
+		//cout << "break3 ..." << pd(0) << ";" << pd(1) << endl;
         Ao = A;
-        //cout << "break 9 : Ao, " << sum(Ao) << "," << Ao.n_elem << endl;
         Go = G;
         so = s;
         A = find(abs(pd) > T);
-        //cout << "break 10 : A, " << sum(A) << "," << A.n_elem << endl;
         s = A.n_elem;
         tpd = pdt;
         pdt = find(abs(pd) > T);
-        
-        //cout << "break 11 : tpd, " << sum(tpd) << "," << tpd.n_elem << endl;
-        //cout << "break 12 : pdt, " << sum(pdt) << "," << pdt.n_elem << endl;
-        
+                
         if (A.n_elem > mu){
-            //cout << "break break1 ... " << endl;
             break;
         }
         //IntegerVector pdtmp = intersect(as<IntegerVector>(wrap(pdt)),
         //                               as<IntegerVector>(wrap(tpd)));
         if ( tpd.n_elem == pdt.n_elem && sum(tpd) == sum(pdt)){
-        //if (pdtmp.size() == tpd.n_elem){
-            //cout << "break break2 ... " << endl;
             break;
         }
 		
@@ -224,7 +215,7 @@ Rcpp::List pdas(arma::mat X, arma::vec y, double al, double lam, std::string met
 
 
 // [[Rcpp::export]]
-Rcpp::List pdas_path(arma::mat X, arma::vec y, std::string method, std::string sel, double al, double tau, double mu, double del, int MaxIt, double Lmax, double Lmin, int N){
+Rcpp::List pdas_path(arma::mat X, arma::vec y, std::string method, std::string sel, double al, double tau, double mu, double del, double weight, int MaxIt, double Lmax, double Lmin, int N){
     //-----------------------------------------------------------------------//
     // minimize 1/2||X*x-y||^2 + alpha/2||x||^2 + rho_{lambda,tau}(x)        //
     // with PDAS algorithm, stopping criterion: discrepency principle        //
@@ -259,36 +250,52 @@ Rcpp::List pdas_path(arma::mat X, arma::vec y, std::string method, std::string s
 
     uword p = X.n_cols;
     uword n = X.n_rows;
-    
-    if ( method.compare("l0") == 0){
-        cout << "l_0 model is running ... " << endl;
-    }
-    else if ( method.compare("bridge") == 0){
-        cout << "Bridge model is running ... " << endl;
-    }
-    else if ( method.compare("scad") == 0){
-        cout << "SCAD model is running ... " << endl;
-    }
-    else if ( method.compare("mcp") == 0){
-        cout << "MCP model is running ... " << endl;
-    }
-    else if ( method.compare("cl1") == 0){
-        cout << "Capped-l_1 model is running ... " << endl;
-    }
-    else if ( method.compare("lasso") == 0){
-        cout << "Lasso model is running ... " << endl;
-    }
-    else {
-        cout << "Undefined method is PDAS! " << endl;
-    }
+	char methodn;
+	if (method.compare("l0") == 0){
+		cout << "l_0 model is running ... " << endl;
+		methodn = 'B';
+	}
+	else if (method.compare("bridge") == 0){
+		cout << "Bridge model is running ... " << endl;
+		methodn = 'C';
+	}
+	else if (method.compare("scad") == 0){
+		cout << "SCAD model is running ... " << endl;
+		methodn = 'E';
+	}
+	else if (method.compare("mcp") == 0){
+		cout << "MCP model is running ... " << endl;
+		methodn = 'F';
+	}
+	else if (method.compare("cl1") == 0){
+		cout << "Capped-l_1 model is running ... " << endl;
+		methodn = 'D';
+	}
+	else if (method.compare("lasso") == 0){
+		cout << "Lasso model is running ... " << endl;
+		methodn = 'A';
+	}
+	else {
+		cout << "Undefined method is PDAS! " << endl;
+	}
     
     vec Lam1   = exp(linspace(log(Lmax),log(Lmin),N));
 	vec Lam = Lam1;//Lam1.subvec(1,Lam1.n_elem-1);
     vec Xty = X.t()*y;
     double linf = norm(Xty,"inf");
-	//cout << "break 1, linf: " << linf << endl;
     double cnst;
-    if (method.compare("l0") == 0){
+
+	switch (methodn){
+	case 'B':
+		cnst = pow(linf, 2) / 2;
+		break;
+	case 'C':
+		cnst = pow(linf / (2 - tau)*pow(2 * (1 - tau), (tau - 1) / (2 - tau)), 2 - tau);
+		break;
+	default:
+		cnst = linf;
+	}
+    /*if (method.compare("l0") == 0){
         cnst = pow(linf,2)/2;
     }
     else if (method.compare("bridge") == 0){
@@ -296,8 +303,8 @@ Rcpp::List pdas_path(arma::mat X, arma::vec y, std::string method, std::string s
     }
     else {
         cnst = linf;
-    }
-    Lam = Lam*cnst;
+    }*/
+	Lam = Lam*cnst*(1-weight);
     
     mat ithist_x = zeros<mat>(p,N);
     uvec ithist_as = zeros<uvec>(N);
@@ -312,10 +319,13 @@ Rcpp::List pdas_path(arma::mat X, arma::vec y, std::string method, std::string s
     int s, It, id;
     vec x, d;
     double L, res, lam;
-    //Rcpp::List pdas(arma::mat X, arma::vec y, double al, double lam, std::string method, double tau, double mu, int MaxIt, arma::vec Xty, arma::vec x0, arma::vec d0, arma::uvec Aoo, arma::mat Goo)
+
+	clock_t t1 = clock();
     for (unsigned int k = 0; k < Lam.n_elem; k ++ ){
         lam = Lam(k);
-        List out = pdas(X,y,al, lam, method, tau, mu, MaxIt, Xty,x0,d0, A0, G0);
+		//pdas(arma::mat X, arma::vec y, double al, double lam, char methodn, double tau, double mu, double weight, int MaxIt, arma::vec Xty, arma::vec x0, arma::vec d0, arma::uvec Aoo, arma::mat Goo)
+
+		List out = pdas(X, y, al, lam, methodn, tau, mu, weight, MaxIt, Xty, x0, d0, A0, G0);
         vec tmp1 = out["x"]; x = tmp1;
         vec tmp2 = out["d"]; d = tmp2;
         mat tmp3 = out["G"]; G = tmp3;
@@ -335,13 +345,14 @@ Rcpp::List pdas_path(arma::mat X, arma::vec y, std::string method, std::string s
         res = ny - L;
         ithist_res(k) = res;
 
-		//vec res2 = y - X * x;
-		//cout << "break 2, ss, " << sum(res2 % res2) << ", " << res << endl;
-
-		ithist_bic(k) = log(res / n)  + s*log(n) / n;
-		//log(sum(res2 % res2) / n) + s*log(n) / n;
-		//log(0.5*res) + log(log(n))*log(p)*s/(n-s);
+		ithist_bic(k) = log(res / n) + s*log(n) / n;//log(res / n) + s*log(n) / n;
+		//log(res / n) + s*log(n) / n;
         
+		if (k % 5 == 4){
+			cout << k + 1 << "-th lambda: df " << s << "; bic " << ithist_bic(k) << "; lambda " << lam;
+			cout << "; Elapsed time is " << (clock() - t1)*1.0 / CLOCKS_PER_SEC << " sec" << endl;
+		}
+
         if ( res <= del ){
             cout << "Discrepancy principle is satisfied. " <<endl;
             lam = Lam(k);
@@ -366,7 +377,7 @@ Rcpp::List pdas_path(arma::mat X, arma::vec y, std::string method, std::string s
 	ithist_res = ithist_res(lst);
 	Lam = Lam(lst);
 	ithist_as = ithist_as(lst);
-    
+
     /*if ( res > del){
         if (sel.compare("vote") == 0){
             
